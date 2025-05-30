@@ -40,3 +40,38 @@ jobs:
         with:
           name: app.jar
           path: ./target/*.jar
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: app.jar
+
+      - name: From Github Actions to AWS EC2 through SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          source: app.jar
+          target: /home/ubuntu/app
+
+      # 8080점유 프로세스 종료시키고 jar 실행
+      - name: Connecting EC2 through SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            rm -rf /home/ubuntu/app/deploy
+            mkdir /home/ubuntu/app/deploy
+            mv /home/ubuntu/app/app.jar /home/ubuntu/app/deploy/app.jar
+            cd /home/ubuntu/app/deploy
+            sudo fuser -k -n tcp 8080 || true
+            nohup java -jar app.jar > ./output.log 2>&1 &
+#            rm -rf /home/ubuntu/app
