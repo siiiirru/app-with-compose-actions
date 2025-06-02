@@ -1,7 +1,7 @@
 name: App With Github Actions with docker-compose CI/CD
 
 on:
-  push
+  workflow_dispatch
 
 jobs:
   ci:
@@ -21,7 +21,7 @@ jobs:
           touch ./application.properties
           echo "${{ secrets.PROPERTIES }}" > ./application.properties
         shell: bash
-
+      #application.properties없으니 테스트 스킵
       - name: Build with Maven
         run: mvn -B package -DskipTests --file pom.xml
 
