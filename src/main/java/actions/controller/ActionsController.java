@@ -16,9 +16,9 @@ public class ActionsController {
 	}
 
 
-	@GetMapping("/db-test")
-	public String dbTest() {
-		String result = jdbcTemplate.queryForObject("SELECT NOW()", String.class);
-		return "DB 연결 성공! 현재 시간: " + result;
-	}
+//	@GetMapping("/db-test")
+//	public String dbTest() {
+//		String result = jdbcTemplate.queryForObject("SELECT NOW()", String.class);
+//		return "DB 연결 성공! 현재 시간: " + result;
+//	}
 }
