@@ -5,7 +5,7 @@ on:
       - main
 
 jobs:
-  build-push-image:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
@@ -56,3 +56,26 @@ jobs:
       - name: Push Docker image to Amazon ECR
         run: |
           docker push ${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ env.IMAGE_TAG }}
+  cd:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute deployment script
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            RUNNING_CONTAINERS=$(sudo docker ps -q)
+            if [ -n "$RUNNING_CONTAINERS" ]; then
+              echo "Stopping running containers..."
+              sudo docker stop $RUNNING_CONTAINERS
+              sudo docker rm $RUNNING_CONTAINERS
+            fi
+            sudo docker image prune -a -f
+            IMAGE=${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            docker pull $IMAGE
+            sudo docker run -d -p 8080:8080 \
+            -e TZ=Asia/Seoul \
+            $IMAGE
