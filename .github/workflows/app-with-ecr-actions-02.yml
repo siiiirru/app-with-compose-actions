@@ -7,6 +7,8 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    outputs:
+      IMAGE_TAG: ${{ steps.tagger.outputs.IMAGE_TAG }}
 
     steps:
       - uses: actions/checkout@v4
@@ -47,15 +49,16 @@ jobs:
           aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com
 
       - name: Generate image tag with timestamp
-        run: echo "IMAGE_TAG=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+        id: tagger
+        run: echo "IMAGE_TAG=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ env.IMAGE_TAG }} .
+          docker build -t ${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ steps.tagger.outputs.IMAGE_TAG }} .
 
       - name: Push Docker image to Amazon ECR
         run: |
-          docker push ${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker push ${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ steps.tagger.outputs.IMAGE_TAG }}
   cd:
     needs: ci
     runs-on: ubuntu-latest
@@ -74,7 +77,7 @@ jobs:
               sudo docker rm $RUNNING_CONTAINERS
             fi
             sudo docker image prune -a -f
-            IMAGE=${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            IMAGE=${{ secrets.AWS_ECR_PRIVATE_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/${{ secrets.AWS_ECR_PRIVATE_REPOSITORY }}:${{ needs.ci.outputs.IMAGE_TAG }}
             docker pull $IMAGE
             sudo docker run -d -p 8080:8080 \
             -e TZ=Asia/Seoul \
