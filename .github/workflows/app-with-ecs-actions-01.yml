@@ -61,19 +61,22 @@ jobs:
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-          IMAGE_TAG: latest
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          GITHUB_SHA_SHORT: ${{ github.sha }}
         run: |
+          IMAGE_TAG=${GITHUB_SHA_SHORT::7}
+          echo "image_tag=$IMAGE_TAG">>$GITHUB_OUTPUT
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        # github.sha를 썼을 때 어떤 값인지 확인하기 위해 echo가 들어감
 
       # 기존 태스크 정의를 JSON으로 백업 (편집용)
       - name: ECS task definition JSON file
         id: retrieve-task-def
         env:
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-          IMAGE_TAG: latest
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{steps.build-image.outputs.image_tag}}
         run: |
           aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME \
           --query taskDefinition > task-definition-full.json
