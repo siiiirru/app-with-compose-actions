@@ -9,7 +9,7 @@ env:
   ECS_SERVICE: app_with_action_backend_service
   ECS_CLUSTER: app_with_action_cluster
   CONTAINER_NAME: backend-server #태스크 정의에 있는 컨테이너 이름
-  TASK_DEFINITION_NAME: app_with_action_task_def
+  TASK_DEFINITION_NAME: task-definition
 
 jobs:
   build-deploy:
