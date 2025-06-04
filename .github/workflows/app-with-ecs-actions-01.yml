@@ -75,8 +75,12 @@ jobs:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
           IMAGE_TAG: latest
         run: |
-          aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME --query taskDefinition > task-definition.json
-          cat task-definition.json
+          aws ecs describe-task-definition --task-definition first-ecs-task-test-01 \
+          --query taskDefinition > task-definition-full.json
+
+          cat task-definition-full.json
+          
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' task-definition-full.json > task-definition.json
           echo "task-def-file=task-definition.json" >> $GITHUB_OUTPUT
         #ECS 태스크 정의(Task Definition) 정보를 조회한다.
         #조회한 태스크 정의 중에서 taskDefinition 필드만 추출한다.
