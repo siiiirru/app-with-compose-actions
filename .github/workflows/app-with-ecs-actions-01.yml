@@ -1,0 +1,101 @@
+name: User source Deploy to Amazon ECR & ECS
+on:
+  push:
+    branches:
+      - main
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: app_with_actions
+  ECS_SERVICE: app_with_action_backend_service
+  ECS_CLUSTER: app_with_action_cluster
+  CONTAINER_NAME: backend-server #태스크 정의에 있는 컨테이너 이름
+  TASK_DEFINITION_NAME: app_with_action_task_def
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Create application-prod.properties
+        run: |
+          cd ./src/main/resources
+          touch ./application.properties
+          echo "${{ secrets.PROPERTIES }}" > ./application.properties
+        shell: bash
+
+      - name: Build with Maven
+        run: mvn -B package --file pom.xml
+
+      - name: Naming jar file
+        run: mv ./target/*.jar ./target/app.jar
+
+      - name: Check jar file
+        run: ls ./target
+
+      # 멀티플랫폼 지원을 위한 Docker Buildx 설정
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # ECR Private 리포지토리에 업로드
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      # 기존 태스크 정의를 JSON으로 백업 (편집용)
+      - name: ECS task definition JSON file
+        id: retrieve-task-def
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          IMAGE_TAG: latest
+        run: |
+          aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME --query taskDefinition > task-definition.json
+          cat task-definition.json
+          echo "task-def-file=task-definition.json" >> $GITHUB_OUTPUT
+        #ECS 태스크 정의(Task Definition) 정보를 조회한다.
+        #조회한 태스크 정의 중에서 taskDefinition 필드만 추출한다.
+        #추출한 내용을 task-definition.json 파일로 저장하고 OUTPUT으로 내보내기
+
+      # 새로 푸시된 이미지를 기존 태스크 정의에 반영해서 수정본 생성
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.retrieve-task-def.outputs.task-def-file }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      # ECS 서비스에 새 태스크 정의를 배포하고, 서비스가 안정될 때까지 대기
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{env.ECS_SERVICE}}
+          cluster: ${{env.ECS_CLUSTER}}
+          wait-for-service-stability: true
