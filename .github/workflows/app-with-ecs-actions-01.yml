@@ -75,7 +75,7 @@ jobs:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
           IMAGE_TAG: latest
         run: |
-          aws ecs describe-task-definition --task-definition first-ecs-task-test-01 \
+          aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME \
           --query taskDefinition > task-definition-full.json
 
           cat task-definition-full.json
